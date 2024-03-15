@@ -1,0 +1,53 @@
+pipeline{
+    agent any
+    tools{
+        jdk 'jdk17'
+        nodejs 'node16'
+    }
+    environment {
+        SCANNER_HOME=tool 'sonar-scanner'
+    }
+    stages {
+        stage( 'clean workspace'){
+            steps {
+                cleanWs()
+            }
+        }
+        stage('Checkout from git'){
+            steps {
+                git branch: 'main', url: 'https://github.com/KarthikSappidi/zomato-clone.git'
+            }
+        }
+        stage("Soanrqube analysis"){
+            steps {
+                withSonarQubeEnv('sonar-server'){
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=zomato \ -Dsonar.projectKey=zomato '''
+                }
+            }
+        }
+        stage("quality gate"){
+            steps {
+                waitForQualityGate abortPipeline: false, credentialsID: 'Sonar-token'
+            }
+        }
+        stage (" Install Dependencies"){
+            steps {
+                sh "npm install"
+            }
+        }
+        stage (" Docker Build & Push "){
+            steps {
+                withDockerRegistry(credentialsID: 'docker' toolName: 'docker'){
+                    sh "docker build -t zomato ."
+                    sh "docker tag zomato karthiksappidi/zomato:latest"
+                    sh "docker push karthiksappidi/zomato:latest"
+                }
+            }
+        }
+        stage (" Deploy to Container "){
+            steps {
+                sh " docker container run -dt --name zomato -p 3000:3000 karthiksappidi/zomato:latest"
+            }
+        }
+    }
+}
