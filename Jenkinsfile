@@ -8,45 +8,66 @@ pipeline{
         SCANNER_HOME=tool 'sonar-scanner'
     }
     stages {
-        stage( 'clean workspace'){
-            steps {
+        stage('clean workspace'){
+            steps{
                 cleanWs()
             }
         }
-        stage('Checkout from git'){
-            steps {
-                git branch: 'main', url: 'https://github.com/KarthikSappidi/zomato-clone.git'
+        stage('Checkout from Git'){
+            steps{
+                git branch: 'main', url: 'https://github.com/KarthikSappidi/Zomato.git'
             }
         }
-        stage("Soanrqube analysis"){
-            steps {
-                withSonarQubeEnv('sonar-server'){
-                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=zomato \ -Dsonar.projectKey=zomato '''
+        stage("Sonarqube Analysis "){
+            steps{
+                withSonarQubeEnv('sonar-server') {
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=zomato \
+                    -Dsonar.projectKey=zomato '''
                 }
             }
         }
         stage("quality gate"){
-            steps {
-                waitForQualityGate abortPipeline: false, credentialsID: 'Sonar-token'
-            }
+           steps {
+                script {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token' 
+                }
+            } 
         }
-        stage (" Install Dependencies"){
+        stage('Install Dependencies') {
             steps {
                 sh "npm install"
             }
         }
-        stage (" Docker Build & Push "){
+        stage('OWASP FS SCAN') {
             steps {
-                withDockerRegistry(credentialsID: 'docker' toolName: 'docker'){
-                    sh "docker build -t zomato ."
-                    sh "docker tag zomato karthiksappidi/zomato:latest"
-                    sh "docker push karthiksappidi/zomato:latest"
+                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage('TRIVY FS SCAN') {
+            steps {
+                sh "trivy fs . > trivyfs.txt"
+            }
+        }
+        stage("Docker Build & Push"){
+            steps{
+                script{
+                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
+                       sh "docker build -t zomato ."
+                       sh "docker tag zomato karthiksappidi/zomato:latest "
+                       sh "docker push vijaygiduthuri/zomato:latest "
+                    }
                 }
             }
         }
-        stage (" Deploy to Container "){
-            steps {
-                sh " docker container run -dt --name zomato -p 3000:3000 karthiksappidi/zomato:latest"
+        stage("TRIVY"){
+            steps{
+                sh "trivy image vijaygiduthuri/zomato:latest > trivy.txt" 
+            }
+        }
+        stage('Deploy to container'){
+            steps{
+                sh 'docker run -d --name zomato -p 3000:3000 karthiksappidi/zomato:latest'
             }
         }
     }
