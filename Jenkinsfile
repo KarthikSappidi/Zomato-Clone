@@ -55,14 +55,14 @@ pipeline{
                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
                        sh "docker build -t zomato ."
                        sh "docker tag zomato karthiksappidi/zomato:latest "
-                       sh "docker push vijaygiduthuri/zomato:latest "
+                       sh "docker push karthiksappidi/zomato:latest "
                     }
                 }
             }
         }
         stage("TRIVY"){
             steps{
-                sh "trivy image vijaygiduthuri/zomato:latest > trivy.txt" 
+                sh "trivy image karthiksappidi/zomato:latest > trivy.txt" 
             }
         }
         stage('Deploy to container'){
